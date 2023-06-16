@@ -1,0 +1,82 @@
+---
+title: "Robel Pole Average"
+author: "Brandon Mayer"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+year <-readline() 
+path <- paste(dirname(path.expand('~')),"/Box/1.Ruyle_lab/1.Project_Data/XDiamond/AZGFD_LandSwap/Data/Structure/",year, sep="")
+```
+```{r,echo=FALSE,warning=FALSE}
+(folder_files <- list.files(path,recursive = F, include.dirs = F, pattern = ".xlsx"))
+
+for (i in folder_files) {
+  path_to_xlsx <- paste(path,i,sep="/")
+  #path_to_xlsx <- "C:/Users/brand/Dropbox/Project_Data/SRER/Production/SRERexl2021/20211001_UAE_T1.xlsx"
+  metadata <- readxl::read_excel(path_to_xlsx, sheet = 1)
+  Pasture <- gsub(" ","",gsub("Site:","", sub('-.*', '\\1',sub('.*>', '\\1', metadata[1,1])), fixed = TRUE))
+  Transect <- tail(unlist(stringr::str_split(metadata[1,1]," ")), n=1) 
+  #Transect <- stringr::str_split(gsub(".xlsx","",i), "_")[[1]][2] #use if sites are separated
+  date <- gsub("-","",format(strptime(gsub(" ","",as.character(sub('.*:', '\\1', metadata[2,1]))), format="%m/%d/%Y"), "%Y-%m-%d"))
+  base <- paste0(Pasture,"_",Transect)
+  data <- readxl::read_excel(path_to_xlsx, sheet = 2) %>%
+     mutate(Date = format(strptime(gsub(" ","",as.character(sub('.*:', '\\1', metadata[2,1]))), format="%m/%d/%Y"), "%Y-%m-%d"), 
+            Pasture = gsub(" ","",gsub("Site:","", sub('-.*', '\\1',sub('.*>', '\\1', metadata[1,1])), fixed = TRUE)),
+            Site = tail(unlist(stringr::str_split(metadata[1,1]," ")), n=1) )%>% 
+    select(Date,Pasture,Site,Transect,Sample,Measurement)
+    write.csv(data, file=paste0(path,"/",date,"_",base,".csv"))
+  }
+list.files(path)
+```
+
+```{r, echo=FALSE}
+data2022 <- list.files(path,recursive = F, include.dirs = F, pattern = ".csv",full.names = T)%>% 
+    map_df(~read_csv(.)) %>% mutate(Year = lubridate::year(Date))
+
+summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
+                      conf.interval=.95, .drop=TRUE) {
+    library(plyr)
+
+    # New version of length which can handle NA's: if na.rm==T, don't count them
+    length2 <- function (x, na.rm=FALSE) {
+        if (na.rm) sum(!is.na(x))
+        else       length(x)
+    }
+
+    # This does the summary. For each group's data frame, return a vector with
+    # N, mean, and sd
+    datac <- ddply(data, groupvars, .drop=.drop,
+      .fun = function(xx, col) {
+        c(N    = length2(xx[[col]], na.rm=na.rm),
+          mean = mean   (xx[[col]], na.rm=na.rm),
+          sd   = sd     (xx[[col]], na.rm=na.rm)
+        )
+      },
+      measurevar
+    )
+
+    # Rename the "mean" column    
+    datac <- rename(datac, c("mean" = measurevar))
+
+    datac$se <- datac$sd / sqrt(datac$N)  # Calculate standard error of the mean
+
+    # Confidence interval multiplier for standard error
+    # Calculate t-statistic for confidence interval: 
+    # e.g., if conf.interval is .95, use .975 (above/below), and use df=N-1
+    ciMult <- qt(conf.interval/2 + .5, datac$N-1)
+    datac$ci <- datac$se * ciMult
+
+    return(datac)
+}
+
+results <- summarySE(data2022, measurevar="Measurement", groupvars=c("Year","Pasture","Site"))
+write.csv(results,paste(dirname(path.expand('~')),"/Box/1.Ruyle_lab/1.Project_Data/XDiamond/AZGFD_LandSwap/Results/Structure/",paste0("RP_",year,".csv"), sep=""))
+
+```
+
