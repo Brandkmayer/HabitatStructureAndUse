@@ -1,0 +1,38 @@
+---
+title: "Grazed_Class_Utilization"
+author: "Brandon Mayer"
+date: "2023-06-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lubridate)
+library(readr)
+library(googlesheets4)
+library(data.table)
+
+```
+### Enter the year you're interested in working on
+```{r, echo=FALSE}
+year <- '2023' 
+```
+
+```{r, include=FALSE}
+pathUse <- paste(dirname(path.expand('~')),"/Box/1.Ruyle_lab/1.Project_Data/XDiamond/AZGFD_LandSwap/Results/Utilization/", sep="")
+pathRP <- paste(dirname(path.expand('~')),"/Box/1.Ruyle_lab/1.Project_Data/XDiamond/AZGFD_LandSwap/Results/Structure/", sep="")
+```
+
+```{r}
+Use <- list.files(path = pathUse, full.names = T, all.files = TRUE, recursive = TRUE) %>%
+  lapply(function(x) {readxl::read_excel(x, col_names = TRUE, sheet =1)})
+Rp <- list.files(path = pathRP, full.names = T, all.files = TRUE, recursive = TRUE) %>%
+  lapply(function(x) {read_csv(x, col_names = TRUE)})
+Rp <-do.call(rbind,Rp)
+```
+```{r}
+ Rp %>% group_by(Year, Pasture,`Transect`=Site)%>% select(Year,Pasture,Transect, Measurement)  %>%
+  pivot_wider(names_from = Year, values_from = Measurement) %>% mutate(Difference = `2022`-`2023`) %>% left_join(Use[[2]], by = c(Pasture, Transect))
+```
+
